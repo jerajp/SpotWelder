@@ -18,11 +18,12 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "tim.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stm32_tm1637.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,6 +43,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+uint32_t PulseTime_ms=DEF_PULSE_LENGTH;
 
 /* USER CODE END PV */
 
@@ -84,7 +87,11 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
+
+  tm1637SetBrightness(7);
+  tm1637DisplayDecimal(3333, 0);
 
   /* USER CODE END 2 */
 
@@ -95,8 +102,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	tm1637DisplayDecimal(PulseTime_ms, 0);
+
 	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-	HAL_Delay(50);
+
+	HAL_Delay(10);
   }
   /* USER CODE END 3 */
 }

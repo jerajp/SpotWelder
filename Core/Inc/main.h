@@ -37,10 +37,18 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
+extern uint32_t PulseTime_ms;
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
+
+#define BUTTONTHRESHOLD 10
+#define DEF_PULSE_LENGTH 10 //[ms]
+#define MAX_PULSE_LENGTH 500 //[ms]
+#define MIN_PULSE_LENGTH 1 //[ms]
+#define PULSE_LED_TIME 1000 //[ms]
 
 /* USER CODE END EC */
 
@@ -59,12 +67,24 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define LED_Pin GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
+#define START_LED_Pin GPIO_PIN_14
+#define START_LED_GPIO_Port GPIOC
+#define RELAY_CHARGE_Pin GPIO_PIN_10
+#define RELAY_CHARGE_GPIO_Port GPIOB
+#define RELAY_DISCHARGE_Pin GPIO_PIN_11
+#define RELAY_DISCHARGE_GPIO_Port GPIOB
+#define PULSE_Pin GPIO_PIN_8
+#define PULSE_GPIO_Port GPIOA
 #define BUTTON1_Pin GPIO_PIN_4
 #define BUTTON1_GPIO_Port GPIOB
 #define BUTTON2_Pin GPIO_PIN_5
 #define BUTTON2_GPIO_Port GPIOB
 #define FOOTSW_Pin GPIO_PIN_6
 #define FOOTSW_GPIO_Port GPIOB
+#define LED_CLK_Pin GPIO_PIN_8
+#define LED_CLK_GPIO_Port GPIOB
+#define LED_DIO_Pin GPIO_PIN_9
+#define LED_DIO_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

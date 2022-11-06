@@ -42,6 +42,13 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 
+uint32_t TPlusStatus,TMinusStatus,Footsw_Status;
+uint32_t TPlusStatusDebounce,TMinusStatusDebounce,FootswStatus_Debounce;
+uint32_t TPlusStatusDebounceHIST,TMinusStatusDebounceHIST,FootswStatus_DebounceHIST;
+uint32_t TPlusCount,TMinusCount,FootswCount;
+
+uint32_t PulseActive;
+uint32_t PulseActiveCnt;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -187,6 +194,99 @@ void SysTick_Handler(void)
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
+
+  //Get Current Values
+  TPlusStatus=!HAL_GPIO_ReadPin(BUTTON1_GPIO_Port,BUTTON1_Pin);
+  TMinusStatus=!HAL_GPIO_ReadPin(BUTTON2_GPIO_Port,BUTTON2_Pin);
+  Footsw_Status=!HAL_GPIO_ReadPin(FOOTSW_GPIO_Port,FOOTSW_Pin);
+
+  //Save Values from previus loop
+  TPlusStatusDebounceHIST=TPlusStatusDebounce;
+  TMinusStatusDebounceHIST=TMinusStatusDebounce;
+  FootswStatus_DebounceHIST=FootswStatus_Debounce;
+
+  // Debounce Button ++ Button -------------
+  if(TPlusStatus==1)
+  {
+	  TPlusCount++;
+  }
+  else
+  {
+	  TPlusCount=0;
+	  TPlusStatusDebounce=0;
+  }
+  if(TPlusCount==BUTTONTHRESHOLD)
+  {
+	  TPlusStatusDebounce=1;
+  }
+  //-----------------------------------------
+
+  // Debounce -- Button ---------------------
+  if(TMinusStatus==1)
+  {
+	  TMinusCount++;
+  }
+  else
+  {
+	  TMinusCount=0;
+	  TMinusStatusDebounce=0;
+  }
+  if(TMinusCount==BUTTONTHRESHOLD)
+  {
+	  TMinusStatusDebounce=1;
+  }
+  //-----------------------------------------
+
+  // Debounce Footswitch --------------------
+  if(Footsw_Status==1)
+  {
+	  FootswCount++;
+  }
+  else
+  {
+	  FootswCount=0;
+	  FootswStatus_Debounce=0;
+  }
+  if(FootswCount==BUTTONTHRESHOLD)
+  {
+	  FootswStatus_Debounce=1;
+  }
+  //------------------------------------------
+
+  //++ Button Event
+  if(TPlusStatusDebounceHIST!=TPlusStatusDebounce && TPlusStatusDebounce==1)
+  {
+	  PulseTime_ms++;
+	  if(PulseTime_ms>=MAX_PULSE_LENGTH)PulseTime_ms=MAX_PULSE_LENGTH;
+  }
+
+  //-- Button Event
+  if(TMinusStatusDebounceHIST!=TMinusStatusDebounce && TMinusStatusDebounce==1)
+  {
+	  PulseTime_ms--;
+	  if(PulseTime_ms<=MIN_PULSE_LENGTH)PulseTime_ms=MIN_PULSE_LENGTH;
+  }
+
+  //Footswitch Event
+  if(FootswStatus_DebounceHIST!=FootswStatus_Debounce && FootswStatus_Debounce==1)
+  {
+	  //Check if Bank OK
+	  //Start Pulse
+	  HAL_GPIO_WritePin(START_LED_GPIO_Port, START_LED_Pin,GPIO_PIN_SET);
+	  PulseActive=1;
+
+  }
+
+  //WHEN PULSE IS ACTIVE FLASH LED-------------------------------------
+  if(PulseActive)PulseActiveCnt++;
+  if(PulseActiveCnt >= PULSE_LED_TIME )
+  {
+	  PulseActive=0;
+	  PulseActiveCnt=0;
+	  HAL_GPIO_WritePin(START_LED_GPIO_Port, START_LED_Pin,GPIO_PIN_RESET);
+  }
+  //--------------------------------------------------------------------
+
 
   /* USER CODE END SysTick_IRQn 1 */
 }
