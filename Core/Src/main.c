@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "adc.h"
 #include "tim.h"
 #include "gpio.h"
 
@@ -45,7 +46,7 @@
 /* USER CODE BEGIN PV */
 
 uint32_t PulseTime_ms=DEF_PULSE_LENGTH;
-
+uint32_t watch1,watch2,watch3,watch4;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -88,10 +89,19 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM1_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+
+  //DISABLE CHARGING,ENABLE DISCHARGE
+  HAL_GPIO_WritePin(RELAY_CHARGE_GPIO_Port, RELAY_CHARGE_Pin,GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(RELAY_DISCHARGE_GPIO_Port, RELAY_DISCHARGE_Pin,GPIO_PIN_SET);
 
   tm1637SetBrightness(7);
   tm1637DisplayDecimal(3333, 0);
+
+  LL_TIM_OC_SetCompareCH1(TIM1,PulseTime_ms*100);
+  LL_TIM_EnableAllOutputs(TIM1); //MOE bit
+  LL_TIM_EnableIT_CC1(TIM1);
 
   /* USER CODE END 2 */
 
@@ -119,6 +129,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -145,6 +156,12 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV6;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }

@@ -22,6 +22,7 @@
 #include "stm32f1xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "adc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,13 +43,16 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 
-uint32_t TPlusStatus,TMinusStatus,Footsw_Status;
-uint32_t TPlusStatusDebounce,TMinusStatusDebounce,FootswStatus_Debounce;
-uint32_t TPlusStatusDebounceHIST,TMinusStatusDebounceHIST,FootswStatus_DebounceHIST;
-uint32_t TPlusCount,TMinusCount,FootswCount;
+uint32_t TPlusStatus,TMinusStatus,Footsw_Status,TChargeStatus;
+uint32_t TPlusStatusDebounce,TMinusStatusDebounce,FootswStatus_Debounce,TChargeStatusDebounce;
+uint32_t TPlusStatusDebounceHIST,TMinusStatusDebounceHIST,FootswStatus_DebounceHIST,TChargeStatusDebounceHIST;
+uint32_t TPlusCount,TMinusCount,FootswCount,TChargeCount;
 
 uint32_t PulseActive;
 uint32_t PulseActiveCnt;
+
+uint32_t ChargeControl;
+uint32_t Bank_mV;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -195,14 +199,30 @@ void SysTick_Handler(void)
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
+  //Bank voltage---------------------------------------------------------------------
+  HAL_ADC_Start(&hadc1);
+  HAL_ADC_PollForConversion(&hadc1,10);
+  Bank_mV=HAL_ADC_GetValue(&hadc1)*ADC_TO_mV;
+
+  if(Bank_mV > BANK_MAX_mV)
+  {
+	  ChargeControl=0;
+
+	  HAL_GPIO_WritePin(RELAY_CHARGE_GPIO_Port, RELAY_CHARGE_Pin,GPIO_PIN_RESET);
+	  HAL_GPIO_WritePin(RELAY_DISCHARGE_GPIO_Port, RELAY_DISCHARGE_Pin,GPIO_PIN_SET);
+  }
+  //----------------------------------------------------------------------------------
+
   //Get Current Values
   TPlusStatus=!HAL_GPIO_ReadPin(BUTTON1_GPIO_Port,BUTTON1_Pin);
   TMinusStatus=!HAL_GPIO_ReadPin(BUTTON2_GPIO_Port,BUTTON2_Pin);
+  TChargeStatus=!HAL_GPIO_ReadPin(BUTTON3_GPIO_Port,BUTTON3_Pin);
   Footsw_Status=!HAL_GPIO_ReadPin(FOOTSW_GPIO_Port,FOOTSW_Pin);
 
   //Save Values from previus loop
   TPlusStatusDebounceHIST=TPlusStatusDebounce;
   TMinusStatusDebounceHIST=TMinusStatusDebounce;
+  TChargeStatusDebounceHIST=TChargeStatusDebounce;
   FootswStatus_DebounceHIST=FootswStatus_Debounce;
 
   // Debounce Button ++ Button -------------
@@ -237,6 +257,22 @@ void SysTick_Handler(void)
   }
   //-----------------------------------------
 
+  // Debounce Charge Button ---------------------
+  if(TChargeStatus==1)
+  {
+	  TChargeCount++;
+  }
+  else
+  {
+	  TChargeCount=0;
+	  TChargeStatusDebounce=0;
+  }
+  if(TChargeCount==BUTTONTHRESHOLD)
+  {
+	  TChargeStatusDebounce=1;
+  }
+  //-----------------------------------------
+
   // Debounce Footswitch --------------------
   if(Footsw_Status==1)
   {
@@ -253,11 +289,30 @@ void SysTick_Handler(void)
   }
   //------------------------------------------
 
+  // Charge Button Event
+  if(TChargeStatusDebounceHIST!=TChargeStatusDebounce && TChargeStatusDebounce==1)
+  {
+	  if(Bank_mV > BANK_MAX_mV)ChargeControl=0;
+	  else ChargeControl=!ChargeControl;
+
+	  if(ChargeControl)
+	  {
+		  HAL_GPIO_WritePin(RELAY_CHARGE_GPIO_Port, RELAY_CHARGE_Pin,GPIO_PIN_SET);
+		  HAL_GPIO_WritePin(RELAY_DISCHARGE_GPIO_Port, RELAY_DISCHARGE_Pin,GPIO_PIN_RESET);
+	  }
+	  else
+	  {
+		  HAL_GPIO_WritePin(RELAY_CHARGE_GPIO_Port, RELAY_CHARGE_Pin,GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(RELAY_DISCHARGE_GPIO_Port, RELAY_DISCHARGE_Pin,GPIO_PIN_SET);
+	  }
+  }
+
   //++ Button Event
   if(TPlusStatusDebounceHIST!=TPlusStatusDebounce && TPlusStatusDebounce==1)
   {
 	  PulseTime_ms++;
 	  if(PulseTime_ms>=MAX_PULSE_LENGTH)PulseTime_ms=MAX_PULSE_LENGTH;
+	  LL_TIM_OC_SetCompareCH1(TIM1, PulseTime_ms*100);
   }
 
   //-- Button Event
@@ -265,6 +320,7 @@ void SysTick_Handler(void)
   {
 	  PulseTime_ms--;
 	  if(PulseTime_ms<=MIN_PULSE_LENGTH)PulseTime_ms=MIN_PULSE_LENGTH;
+	  LL_TIM_OC_SetCompareCH1(TIM1, PulseTime_ms*100);
   }
 
   //Footswitch Event
@@ -274,7 +330,6 @@ void SysTick_Handler(void)
 	  //Start Pulse
 	  HAL_GPIO_WritePin(START_LED_GPIO_Port, START_LED_Pin,GPIO_PIN_SET);
 	  PulseActive=1;
-
   }
 
   //WHEN PULSE IS ACTIVE FLASH LED-------------------------------------
@@ -284,6 +339,13 @@ void SysTick_Handler(void)
 	  PulseActive=0;
 	  PulseActiveCnt=0;
 	  HAL_GPIO_WritePin(START_LED_GPIO_Port, START_LED_Pin,GPIO_PIN_RESET);
+
+	  LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH1);
+	  LL_TIM_EnableCounter(TIM1);
+	  //Timer is in One pulse mode, Counter at Period goes to 0 and freezes
+	  //With output enabled in PWM1 mode, pulse is always ON
+	  //One solution is to disable output with IT on compare1
+	  //PWM2 mode is more direct but introduces almost whole period start delay (0.65sec) which is worse
   }
   //--------------------------------------------------------------------
 
@@ -297,6 +359,21 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f1xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles TIM1 capture compare interrupt.
+  */
+void TIM1_CC_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM1_CC_IRQn 0 */
+  LL_TIM_ClearFlag_CC1(TIM1);
+  LL_TIM_CC_DisableChannel(TIM1, LL_TIM_CHANNEL_CH1);
+
+  /* USER CODE END TIM1_CC_IRQn 0 */
+  /* USER CODE BEGIN TIM1_CC_IRQn 1 */
+
+  /* USER CODE END TIM1_CC_IRQn 1 */
+}
 
 /* USER CODE BEGIN 1 */
 
